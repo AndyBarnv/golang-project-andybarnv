@@ -1,4 +1,4 @@
-package server
+package httpserver
 
 import (
 	"context"
@@ -40,8 +40,11 @@ func NewHandler(svc Service) http.Handler {
 
 	mux.HandleFunc("GET /load-movies", api.loadMovies)
 	mux.HandleFunc("GET /last-movie", api.lastMovie)
-	// mux.HandleFunc("GET /openapi.json", serveSpec)
-	// mux.HandleFunc("GET /docs/{$}", serveDocs)
+	mux.HandleFunc("GET /openapi.json", serveSpec)
+	mux.HandleFunc("GET /swagger/index.html", serveDocs)
+	mux.HandleFunc("GET /swagger/{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/swagger/index.html", http.StatusFound)
+	})
 	return logging(mux)
 }
 
@@ -82,6 +85,18 @@ func movieBounds(w http.ResponseWriter, r *http.Request) (int, int, bool) {
 	return from, to, true
 }
 
+// loadMovies godoc
+// @Summary      Загрузить список фильмов по диапазону ID
+// @Description  Возвращает список фильмов и частичные ошибки загрузки
+// @Tags         movies
+// @Produce      json
+// @Param        from  query     int  true  "Начальный ID"
+// @Param        to    query     int  true  "Конечный ID"
+// @Success      200   {object}  loadMoviesResponse
+// @Failure      400   {object}  errorResponse
+// @Failure      502   {object}  errorResponse
+// @Router       /load-movies
+
 func (api *movieAPI) loadMovies(w http.ResponseWriter, r *http.Request) {
 	from, to, ok := movieBounds(w, r)
 	if !ok {
@@ -90,7 +105,7 @@ func (api *movieAPI) loadMovies(w http.ResponseWriter, r *http.Request) {
 	movies, partial, err := api.svc.LoadMovies(r.Context(), from, to)
 	if err != nil {
 		if r.Context().Err() != nil {
-			log.Printf("load-movies: request aborted, %v", err)
+			log.Printf("load-movies: request aborted: %v", err)
 			return
 		}
 		switch {

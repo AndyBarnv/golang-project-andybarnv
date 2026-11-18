@@ -1,0 +1,281 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Movie Service",
+        "version": "1.0.0",
+        "description": "HTTP API над внешним фильм-стендом. Проксирует запросы к {MOVIE_BASE_URL}/{id}/info.0.json."
+    },
+    "servers": [
+        {
+            "url": "/"
+        }
+    ],
+    "tags": [
+        {
+            "name": "movies",
+            "description": "Загрузка фильмов со стенда"
+        }
+    ],
+    "paths": {
+        "/load-movies": {
+            "get": {
+                "summary": "Загрузить фильмы в диапазоне [from; to]",
+                "operationId": "loadMovies",
+                "tags": [
+                    "movies"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": true,
+                        "description": "Первый id диапазона (включительно). Должен быть >= 1.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 1
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": true,
+                        "description": "Последний id диапазона (включительно). Должен быть >= from; размер диапазона ограничен.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 5
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Фильмы загружены. Неудачные id перечислены в errors, остальные возвращены в movies.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoadMoviesResponse"
+                                },
+                                "example": {
+                                    "movies": [
+                                        {
+                                            "id": 1,
+                                            "title": "Example Movie",
+                                            "year": 2000,
+                                            "director": "John Doe"
+                                        }
+                                    ],
+                                    "errors": [
+                                        {
+                                            "id": 2,
+                                            "error": "movie not found"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "from/to отсутствуют, не являются целыми числами или диапазон некорректен",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "bad_range",
+                                        "message": "invalid movie range: from=5, to=1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Внешний стенд недоступен или вернул некорректный ответ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "upstream_unavailable",
+                                        "message": "upstream unavailable"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/last-movie": {
+            "get": {
+                "summary": "Получить последний доступный фильм на стенде",
+                "operationId": "getLastMovie",
+                "tags": [
+                    "movies"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Последний фильм на стенде",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Movie"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "На стенде нет ни одного фильма",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "not_found",
+                                        "message": "movie not found"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Внешний стенд недоступен или вернул некорректный ответ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "upstream_unavailable",
+                                        "message": "upstream unavailable"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "504": {
+                        "description": "Внешний стенд не ответил за отведённое время",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "upstream_timeout",
+                                        "message": "context deadline exceeded"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Movie": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "year",
+                    "director"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "example": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Example Movie"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "example": 2000
+                    },
+                    "director": {
+                        "type": "string",
+                        "example": "John Doe"
+                    }
+                }
+            },
+            "ItemError": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "error"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "id фильма, который не удалось загрузить",
+                        "example": 2
+                    },
+                    "error": {
+                        "type": "string",
+                        "example": "movie not found"
+                    }
+                }
+            },
+            "LoadMoviesResponse": {
+                "type": "object",
+                "required": [
+                    "movies",
+                    "errors"
+                ],
+                "properties": {
+                    "movies": {
+                        "type": "array",
+                        "description": "Успешно загруженные фильмы, отсортированы по id",
+                        "items": {
+                            "$ref": "#/components/schemas/Movie"
+                        }
+                    },
+                    "errors": {
+                        "type": "array",
+                        "description": "Частичные ошибки по отдельным id",
+                        "items": {
+                            "$ref": "#/components/schemas/ItemError"
+                        }
+                    }
+                }
+            },
+            "APIError": {
+                "type": "object",
+                "required": [
+                    "error"
+                ],
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "required": [
+                            "code",
+                            "message"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "example": "bad_range"
+                            },
+                            "message": {
+                                "type": "string",
+                                "example": "invalid movie range"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
