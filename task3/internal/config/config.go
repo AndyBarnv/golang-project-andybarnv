@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	DefaultAddr    = ":8080"
-	DefaultBaseURL = "https://homeworksite.site"
+	DefaultHTTPAddr = ":8080"
+	DefaultBaseURL  = "https://homeworksite.site"
+	DefaultGRPCAddr = ":50051"
 
 	ClientTimeout           = 5 * time.Second
 	ServerReadHeaderTimeout = 5 * time.Second
@@ -23,6 +24,7 @@ const (
 type Config struct {
 	MovieBaseURL string
 	HTTPAddr     string
+	GRPCAddr     string
 }
 
 func (c *Config) validate() error {
@@ -49,7 +51,8 @@ func getEnv(key string, defaultValue string) string {
 func Load() (Config, error) {
 	cfg := Config{
 		MovieBaseURL: getEnv("MOVIE_BASE_URL", DefaultBaseURL),
-		HTTPAddr:     getEnv("HTTP_ADDR", DefaultAddr),
+		HTTPAddr:     getEnv("HTTP_ADDR", DefaultHTTPAddr),
+		GRPCAddr:     getEnv("GRPC_ADDR", DefaultGRPCAddr),
 	}
 	if err := cfg.validate(); err != nil {
 		return Config{}, err

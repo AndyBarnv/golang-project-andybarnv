@@ -35,7 +35,9 @@ type MovieResp struct {
 	Error     error
 }
 
-var ErrBadRange = errors.New("from must be positive and to must be >= from")
+const maxRangeSize = 10_000
+
+var ErrBadRange = errors.New("invalid range")
 
 func (s *Service) worker(ctx context.Context, jobs chan int, results chan MovieResp) {
 	for id := range jobs {
@@ -49,8 +51,10 @@ func (s *Service) worker(ctx context.Context, jobs chan int, results chan MovieR
 }
 
 func (s *Service) LoadMovies(ctx context.Context, from, to int) ([]client.Movie, []ItemError, error) {
-	if from < 1 || to < from || to-from > 10000 {
-		return nil, nil, fmt.Errorf("%w: from=%d, to=%d", ErrBadRange, from, to)
+	if from < 1 || to < from || to-from >= maxRangeSize {
+		return nil, nil, fmt.Errorf(
+			"%w: range must be positive, ordered and contain at most %d movies: from=%d, to=%d",
+			ErrBadRange, maxRangeSize, from, to)
 	}
 
 	moviesNum := to - from + 1
