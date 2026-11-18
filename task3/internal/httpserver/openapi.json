@@ -50,28 +50,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Фильмы загружены. Неудачные id перечислены в errors, остальные возвращены в movies.",
+                        "description": "Массив результатов, отсортирован по id: элементы-фильмы и элементы-ошибки по отдельным id.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/LoadMoviesResponse"
+                                    "type": "array",
+                                    "items": {
+                                        "oneOf": [
+                                            {
+                                                "$ref": "#/components/schemas/Movie"
+                                            },
+                                            {
+                                                "$ref": "#/components/schemas/ItemError"
+                                            }
+                                        ]
+                                    }
                                 },
-                                "example": {
-                                    "movies": [
-                                        {
-                                            "id": 1,
-                                            "title": "Example Movie",
-                                            "year": 2000,
-                                            "director": "John Doe"
-                                        }
-                                    ],
-                                    "errors": [
-                                        {
-                                            "id": 2,
-                                            "error": "movie not found"
-                                        }
-                                    ]
-                                }
+                                "example": [
+                                    {
+                                        "id": 1,
+                                        "title": "Example Movie",
+                                        "year": 2000,
+                                        "director": "John Doe"
+                                    },
+                                    {
+                                        "id": 2,
+                                        "error": "movie not found"
+                                    }
+                                ]
                             }
                         }
                     },
@@ -225,29 +231,6 @@
                     "error": {
                         "type": "string",
                         "example": "movie not found"
-                    }
-                }
-            },
-            "LoadMoviesResponse": {
-                "type": "object",
-                "required": [
-                    "movies",
-                    "errors"
-                ],
-                "properties": {
-                    "movies": {
-                        "type": "array",
-                        "description": "Успешно загруженные фильмы, отсортированы по id",
-                        "items": {
-                            "$ref": "#/components/schemas/Movie"
-                        }
-                    },
-                    "errors": {
-                        "type": "array",
-                        "description": "Частичные ошибки по отдельным id",
-                        "items": {
-                            "$ref": "#/components/schemas/ItemError"
-                        }
                     }
                 }
             },

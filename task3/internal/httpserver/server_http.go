@@ -14,7 +14,7 @@ import (
 )
 
 type Service interface {
-	LoadMovies(ctx context.Context, from, to int) ([]client.Movie, []service.ItemError, error)
+	LoadMovies(ctx context.Context, from, to int) ([]service.MovieResp, error)
 	LastMovie(ctx context.Context) (client.Movie, error)
 }
 
@@ -22,9 +22,12 @@ type movieAPI struct {
 	svc Service
 }
 
-type loadMoviesResponse struct {
-	Movies []client.Movie      `json:"movies"`
-	Errors []service.ItemError `json:"errors"`
+type movieItem struct {
+	ID       int    `json:"id"`
+	Title    string `json:"title,omitempty"`
+	Year     int    `json:"year,omitempty"`
+	Director string `json:"director,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 type APIError struct {
@@ -85,24 +88,12 @@ func movieBounds(w http.ResponseWriter, r *http.Request) (int, int, bool) {
 	return from, to, true
 }
 
-// loadMovies godoc
-// @Summary      Загрузить список фильмов по диапазону ID
-// @Description  Возвращает список фильмов и частичные ошибки загрузки
-// @Tags         movies
-// @Produce      json
-// @Param        from  query     int  true  "Начальный ID"
-// @Param        to    query     int  true  "Конечный ID"
-// @Success      200   {object}  loadMoviesResponse
-// @Failure      400   {object}  errorResponse
-// @Failure      502   {object}  errorResponse
-// @Router       /load-movies
-
 func (api *movieAPI) loadMovies(w http.ResponseWriter, r *http.Request) {
 	from, to, ok := movieBounds(w, r)
 	if !ok {
 		return
 	}
-	movies, partial, err := api.svc.LoadMovies(r.Context(), from, to)
+	items, err := api.svc.LoadMovies(r.Context(), from, to)
 	if err != nil {
 		if r.Context().Err() != nil {
 			log.Printf("load-movies: request aborted: %v", err)
@@ -116,7 +107,21 @@ func (api *movieAPI) loadMovies(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, loadMoviesResponse{Movies: movies, Errors: partial})
+
+	out := make([]movieItem, 0, len(items))
+	for _, it := range items {
+		if it.Error != nil {
+			out = append(out, movieItem{ID: it.ID, Error: it.Error.Error()})
+		} else {
+			out = append(out, movieItem{
+				ID:       it.ID,
+				Title:    it.MovieInfo.Title,
+				Year:     it.MovieInfo.Year,
+				Director: it.MovieInfo.Director,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (api *movieAPI) lastMovie(w http.ResponseWriter, r *http.Request) {

@@ -24,11 +24,6 @@ func NewService(fetcher Fetcher, workersNum int) *Service {
 	return &Service{fetcher: fetcher, workersNum: workersNum}
 }
 
-type ItemError struct {
-	ID    int    `json:"id"`
-	Error string `json:"error"`
-}
-
 type MovieResp struct {
 	ID        int
 	MovieInfo client.Movie
@@ -50,11 +45,12 @@ func (s *Service) worker(ctx context.Context, jobs chan int, results chan MovieR
 	}
 }
 
-func (s *Service) LoadMovies(ctx context.Context, from, to int) ([]client.Movie, []ItemError, error) {
+func (s *Service) LoadMovies(ctx context.Context, from, to int) ([]MovieResp, error) {
 	if from < 1 || to < from || to-from >= maxRangeSize {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: range must be positive, ordered and contain at most %d movies: from=%d, to=%d",
-			ErrBadRange, maxRangeSize, from, to)
+			ErrBadRange, maxRangeSize, from, to,
+		)
 	}
 
 	moviesNum := to - from + 1
@@ -78,33 +74,29 @@ func (s *Service) LoadMovies(ctx context.Context, from, to int) ([]client.Movie,
 
 	go func() {
 		defer close(jobs)
-		for i := from; i <= to; i++ {
+		for id := from; ; id++ {
 			select {
 			case <-ctx.Done():
 				return
-			case jobs <- i:
+			case jobs <- id:
+			}
+			if id == to {
+				return
 			}
 		}
 	}()
 
-	movies := make([]client.Movie, 0, moviesNum)
-	partial := make([]ItemError, 0, moviesNum)
-
+	items := make([]MovieResp, 0, moviesNum)
 	for res := range results {
-		if res.Error != nil {
-			partial = append(partial, ItemError{ID: res.ID, Error: res.Error.Error()})
-		} else {
-			movies = append(movies, res.MovieInfo)
-		}
+		items = append(items, res)
 	}
 
-	slices.SortFunc(movies, func(movie1, movie2 client.Movie) int { return cmp.Compare(movie1.ID, movie2.ID) })
-	slices.SortFunc(partial, func(error1, error2 ItemError) int { return cmp.Compare(error1.ID, error2.ID) })
+	slices.SortFunc(items, func(item1, item2 MovieResp) int { return cmp.Compare(item1.ID, item2.ID) })
 
 	if err := ctx.Err(); err != nil {
-		return movies, partial, err
+		return items, err
 	}
-	return movies, partial, nil
+	return items, nil
 }
 
 func (s *Service) LastMovie(ctx context.Context) (client.Movie, error) {

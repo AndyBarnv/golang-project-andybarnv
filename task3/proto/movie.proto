@@ -11,14 +11,20 @@ message Movie {
 }
 
 message ItemError {
-    int64 id = 1;
-    string error = 2;
+  int64 id = 1;
+  string error = 2;
+}
+
+message MovieItem {
+  oneof result {
+    Movie movie = 1;
+    ItemError error = 2;
+  }
 }
 
 message LoadMoviesRequest { int64 from = 1; int64 to = 2; }
 message LoadMoviesResponse {
-  repeated Movie movies = 1;
-  repeated ItemError errors = 2;
+  repeated MovieItem items = 1;
 }
 message GetLastMovieRequest {}
 

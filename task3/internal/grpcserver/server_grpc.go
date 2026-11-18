@@ -15,7 +15,7 @@ import (
 )
 
 type Service interface {
-	LoadMovies(ctx context.Context, from, to int) ([]client.Movie, []service.ItemError, error)
+	LoadMovies(ctx context.Context, from, to int) ([]service.MovieResp, error)
 	LastMovie(ctx context.Context) (client.Movie, error)
 }
 
@@ -51,20 +51,28 @@ func toProtoMovie(m client.Movie) *pb.Movie {
 	return &pb.Movie{
 		Id:       int64(m.ID),
 		Title:    m.Title,
-		Director: m.Director,
 		Year:     int32(m.Year),
+		Director: m.Director,
 	}
 }
 
-func toProtoItemError(ie service.ItemError) *pb.ItemError {
-	return &pb.ItemError{
-		Id:    int64(ie.ID),
-		Error: ie.Error,
+func toProtoMovieItem(m service.MovieResp) *pb.MovieItem {
+	if m.Error != nil {
+		return &pb.MovieItem{
+			Result: &pb.MovieItem_Error{
+				Error: &pb.ItemError{Id: int64(m.ID), Error: m.Error.Error()},
+			},
+		}
+	}
+	return &pb.MovieItem{
+		Result: &pb.MovieItem_Movie{
+			Movie: toProtoMovie(m.MovieInfo),
+		},
 	}
 }
 
 func (s *MovieServer) LoadMovies(ctx context.Context, req *pb.LoadMoviesRequest) (*pb.LoadMoviesResponse, error) {
-	movies, partial, err := s.svc.LoadMovies(ctx, int(req.GetFrom()), int(req.GetTo()))
+	items, err := s.svc.LoadMovies(ctx, int(req.GetFrom()), int(req.GetTo()))
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, status.FromContextError(ctx.Err()).Err()
@@ -77,16 +85,12 @@ func (s *MovieServer) LoadMovies(ctx context.Context, req *pb.LoadMoviesRequest)
 		}
 	}
 
-	protoMovies := make([]*pb.Movie, 0, len(movies))
-	for i := 0; i < len(movies); i++ {
-		protoMovies = append(protoMovies, toProtoMovie(movies[i]))
-	}
-	protoPartial := make([]*pb.ItemError, 0, len(partial))
-	for i := 0; i < len(partial); i++ {
-		protoPartial = append(protoPartial, toProtoItemError(partial[i]))
+	protoMovieItems := make([]*pb.MovieItem, 0, len(items))
+	for i := 0; i < len(items); i++ {
+		protoMovieItems = append(protoMovieItems, toProtoMovieItem(items[i]))
 	}
 
-	return &pb.LoadMoviesResponse{Movies: protoMovies, Errors: protoPartial}, nil
+	return &pb.LoadMoviesResponse{Items: protoMovieItems}, nil
 }
 
 func (s *MovieServer) GetLastMovie(ctx context.Context, req *pb.GetLastMovieRequest) (*pb.Movie, error) {
