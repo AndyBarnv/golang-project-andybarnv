@@ -1,0 +1,264 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Movie Service",
+        "version": "1.0.0",
+        "description": "HTTP API над PostgreSQL. При старте сервис синхронизирует фильмы с внешним стендом, а пользовательские запросы читают данные из базы."
+    },
+    "servers": [
+        {
+            "url": "/"
+        }
+    ],
+    "tags": [
+        {
+            "name": "movies",
+            "description": "Чтение фильмов из PostgreSQL"
+        }
+    ],
+    "paths": {
+        "/load-movies": {
+            "get": {
+                "summary": "Получить фильмы из PostgreSQL в диапазоне [from; to]",
+                "operationId": "loadMovies",
+                "tags": [
+                    "movies"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": true,
+                        "description": "Первый id диапазона (включительно). Должен быть >= 1.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 1
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": true,
+                        "description": "Последний id диапазона (включительно). Должен быть >= from; размер диапазона ограничен.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 5
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Массив результатов из PostgreSQL, отсортирован по id: элементы-фильмы и элементы-ошибки по отдельным id.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "oneOf": [
+                                            {
+                                                "$ref": "#/components/schemas/Movie"
+                                            },
+                                            {
+                                                "$ref": "#/components/schemas/ItemError"
+                                            }
+                                        ]
+                                    }
+                                },
+                                "example": [
+                                    {
+                                        "id": 1,
+                                        "title": "Example Movie",
+                                        "year": 2000,
+                                        "director": "John Doe"
+                                    },
+                                    {
+                                        "id": 2,
+                                        "error": "movie is not stored in database"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "from/to отсутствуют, не являются целыми числами или диапазон некорректен",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "bad_range",
+                                        "message": "invalid movie range: from=5, to=1"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "PostgreSQL недоступен или не удалось прочитать фильмы",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "database_unavailable",
+                                        "message": "failed to read movies from database"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/last-movie": {
+            "get": {
+                "summary": "Получить последний фильм из PostgreSQL",
+                "operationId": "getLastMovie",
+                "tags": [
+                    "movies"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Последний фильм в PostgreSQL",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Movie"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "В PostgreSQL нет ни одного фильма",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "not_found",
+                                        "message": "get last movie: movie not found"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "PostgreSQL недоступен или не удалось прочитать фильм",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "database_unavailable",
+                                        "message": "failed to read last movie from database"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "504": {
+                        "description": "PostgreSQL не ответил за отведённое время",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/APIError"
+                                },
+                                "example": {
+                                    "error": {
+                                        "code": "database_timeout",
+                                        "message": "database request timed out"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Movie": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "year",
+                    "director"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "example": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Example Movie"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "example": 2000
+                    },
+                    "director": {
+                        "type": "string",
+                        "example": "John Doe"
+                    }
+                }
+            },
+            "ItemError": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "error"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "id фильма, который отсутствует в PostgreSQL",
+                        "example": 2
+                    },
+                    "error": {
+                        "type": "string",
+                        "example": "movie is not stored in database"
+                    }
+                }
+            },
+            "APIError": {
+                "type": "object",
+                "required": [
+                    "error"
+                ],
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "required": [
+                            "code",
+                            "message"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "example": "bad_range"
+                            },
+                            "message": {
+                                "type": "string",
+                                "example": "invalid movie range"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
